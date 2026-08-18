@@ -1,0 +1,25 @@
+# Reverse-engineering workspace — APK/dex dumps, mitmproxy captures, frida agents,
+# probe scripts and a venv. Kept locally, never published.
+research/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Scratch
+*.log
+*.h264
+*.mp4
+*.jpg
+!docs/images/*.jpg

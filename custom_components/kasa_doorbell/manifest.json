@@ -1,0 +1,20 @@
+{
+  "domain": "kasa_doorbell",
+  "name": "Kasa Camera",
+  "codeowners": [
+    "@hbattat"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "ffmpeg",
+    "frontend",
+    "http",
+    "stream",
+    "websocket_api"
+  ],
+  "documentation": "https://github.com/hbattat/kasa-doorbell",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/hbattat/kasa-doorbell/issues",
+  "requirements": [],
+  "version": "0.13.2"
+}
