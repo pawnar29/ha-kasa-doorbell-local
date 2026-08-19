@@ -17,6 +17,14 @@ venv/
 .vscode/
 *.swp
 
+# Reverse-engineering binaries — never publish these, wherever they turn up
+*.apk
+*.aab
+*.dex
+*.jar
+*.smali
+*.so
+
 # Scratch
 *.log
 *.h264
