@@ -13,11 +13,11 @@ import sys
 from pathlib import Path
 
 # Load api.py standalone so the test runs without Home Assistant installed.
-_API = Path(__file__).resolve().parents[1] / "custom_components" / "kasa_doorbell" / "api.py"
+_API = Path(__file__).resolve().parents[1] / "custom_components" / "kasa_doorbell_local" / "api.py"
 _CONST = _API.parent / "const.py"
 
 # Stub the relative import (`from .const import …`) that api.py does.
-_pkg = "kasa_doorbell_stub"
+_pkg = "kasa_doorbell_local_stub"
 sys.modules[_pkg] = type(sys)(_pkg)
 sys.modules[_pkg].__path__ = [str(_API.parent)]
 spec_c = importlib.util.spec_from_file_location(f"{_pkg}.const", _CONST)

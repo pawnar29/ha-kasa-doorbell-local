@@ -17,7 +17,7 @@ import types
 from pathlib import Path
 
 COMPONENT = (
-    Path(__file__).resolve().parents[1] / "custom_components" / "kasa_doorbell"
+    Path(__file__).resolve().parents[1] / "custom_components" / "kasa_doorbell_local"
 )
 
 

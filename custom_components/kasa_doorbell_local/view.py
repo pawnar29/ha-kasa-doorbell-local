@@ -4,8 +4,8 @@ HA's stream component opens `stream_source()` with PyAV, which cannot speak the 
 bespoke multipart transport. Rather than depend on a full go2rtc build (HA's bundled one has
 no `kasa` driver), the integration converts the stream itself and serves it from here.
 
-    /api/kasa_camera/live/<token>            live view
-    /api/kasa_camera/playback/<token>/<ts>   recorded, from that epoch second
+    /api/kasa_doorbell_local/live/<token>            live view
+    /api/kasa_doorbell_local/playback/<token>/<ts>   recorded, from that epoch second
 
 The URL carries an unguessable per-entry token; HA's stream component fetches these over
 loopback, so nothing camera-related is exposed without it.
@@ -35,8 +35,8 @@ _LOGGER = logging.getLogger(__name__)
 # The URL carries an unguessable per-entry token instead of relying on HA signed paths,
 # whose helper signature has changed across HA versions. HA's own stream component fetches
 # these over loopback, so the token is the access control.
-LIVE_URL = "/api/kasa_camera/live/{token}"
-PLAYBACK_URL = "/api/kasa_camera/playback/{token}/{start_time}"
+LIVE_URL = "/api/kasa_doorbell_local/live/{token}"
+PLAYBACK_URL = "/api/kasa_doorbell_local/playback/{token}/{start_time}"
 _TOKENS = f"{__name__}_tokens"
 
 
@@ -154,7 +154,7 @@ class KasaStreamView(HomeAssistantView):
     """Streams live camera video as MPEG-TS."""
 
     url = LIVE_URL
-    name = "api:kasa_camera:live"
+    name = "api:kasa_doorbell_local:live"
     requires_auth = False  # guarded by the unguessable per-entry token in the URL
 
     def __init__(self, hass: HomeAssistant) -> None:
@@ -252,7 +252,7 @@ class KasaPlaybackView(KasaStreamView):
     """Streams RECORDED video from the camera's SD card, seeked to a timestamp."""
 
     url = PLAYBACK_URL
-    name = "api:kasa_camera:playback"
+    name = "api:kasa_doorbell_local:playback"
 
     async def get(  # type: ignore[override]
         self, request: web.Request, token: str, start_time: str
@@ -278,7 +278,7 @@ async def async_stop_pipeline(hass: HomeAssistant, entry_id: str) -> None:
         await running[0].stop()
 
 
-CLIP_URL = "/api/kasa_camera/clip/{token}/{start_time}"
+CLIP_URL = "/api/kasa_doorbell_local/clip/{token}/{start_time}"
 
 
 def async_clip_path(hass: HomeAssistant, entry_id: str, start_time: int) -> str:
@@ -297,7 +297,7 @@ class KasaClipView(HomeAssistantView):
     """
 
     url = CLIP_URL
-    name = "api:kasa_camera:clip"
+    name = "api:kasa_doorbell_local:clip"
     requires_auth = False  # guarded by the unguessable per-entry token in the URL
 
     def __init__(self, hass: HomeAssistant) -> None:

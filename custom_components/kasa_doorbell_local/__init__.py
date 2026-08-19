@@ -1,4 +1,4 @@
-"""The Kasa Doorbell (KD110) integration."""
+"""The Kasa Doorbell (local) integration."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ type KasaDoorbellConfigEntry = ConfigEntry[KasaDoorbellCoordinator]
 async def async_setup_entry(
     hass: HomeAssistant, entry: KasaDoorbellConfigEntry
 ) -> bool:
-    """Set up Kasa Doorbell from a config entry."""
+    """Set up a Kasa camera from a config entry."""
     async_register_views(hass)
     websocket.async_register(hass)
     await async_register_card(hass)

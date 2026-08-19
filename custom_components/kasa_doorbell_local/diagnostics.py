@@ -1,4 +1,4 @@
-"""Diagnostics support for Kasa Doorbell (redacted)."""
+"""Diagnostics support for Kasa Doorbell (local) (redacted)."""
 
 from __future__ import annotations
 

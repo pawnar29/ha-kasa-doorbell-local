@@ -1,5 +1,5 @@
 /**
- * Kasa Camera — recordings card.
+ * Kasa Doorbell (local) — recordings card.
  *
  * Browses the footage on the camera's SD card: pick a day, filter by what triggered the
  * recording, click a clip to play it.
@@ -75,14 +75,14 @@ class KasaRecordingsCard extends HTMLElement {
         this._entryId = this._config.entity;
       } else {
         const cameras = await this._hass.callWS({
-          type: "kasa_doorbell/recordings/cameras",
+          type: "kasa_doorbell_local/recordings/cameras",
         });
         if (!cameras.length) throw new Error("No Kasa camera with recordings is set up");
         this._entryId = cameras[0].entry_id;
         this._name = cameras[0].name;
       }
       const info = await this._hass.callWS({
-        type: "kasa_doorbell/recordings/days",
+        type: "kasa_doorbell_local/recordings/days",
         entry_id: this._entryId,
       });
       this._days = info.days;
@@ -100,7 +100,7 @@ class KasaRecordingsCard extends HTMLElement {
     this._render();
     try {
       this._clips = await this._hass.callWS({
-        type: "kasa_doorbell/recordings/clips",
+        type: "kasa_doorbell_local/recordings/clips",
         entry_id: this._entryId,
         day: this._day,
       });
@@ -146,7 +146,7 @@ class KasaRecordingsCard extends HTMLElement {
       let status;
       try {
         status = await this._hass.callWS({
-          type: "kasa_doorbell/recordings/prepare",
+          type: "kasa_doorbell_local/recordings/prepare",
           entry_id: this._entryId,
           seek: clip.seek,
           duration: clip.duration,
@@ -351,7 +351,7 @@ customElements.define("kasa-recordings-card", KasaRecordingsCard);
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "kasa-recordings-card",
-  name: "Kasa Camera Recordings",
+  name: "Kasa Doorbell Recordings",
   description: "Browse and play footage from a Kasa camera's SD card, filtered by event type.",
   preview: false,
 });

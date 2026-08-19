@@ -92,7 +92,7 @@ class KasaDoorbellConfigFlow(ConfigFlow, domain=DOMAIN):
                 }
                 if not (user_input.get(CONF_STREAM_PASSWORD) or "").strip():
                     data.pop(CONF_STREAM_PASSWORD, None)
-                name = info.alias or info.dev_name or info.model_family or "Kasa Camera"
+                name = info.alias or info.dev_name or info.model_family or "Kasa Doorbell"
                 return self.async_create_entry(
                     title=f"{name} ({info.model_family or user_input[CONF_HOST]})",
                     data=data,

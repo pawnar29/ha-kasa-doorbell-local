@@ -5,11 +5,11 @@ plain data — days, and clips with their type — not a `media-source://` tree 
 re-parse. These commands return exactly that, plus a ready-to-play URL per clip so the card
 never has to know how playback is wired.
 
-    kasa_doorbell/recordings/cameras            -> [{entry_id, name, entity_id}]
-    kasa_doorbell/recordings/days   {entry_id}  -> {days: [...], start, end}
-    kasa_doorbell/recordings/clips  {entry_id, day}
+    kasa_doorbell_local/recordings/cameras            -> [{entry_id, name, entity_id}]
+    kasa_doorbell_local/recordings/days   {entry_id}  -> {days: [...], start, end}
+    kasa_doorbell_local/recordings/clips  {entry_id, day}
                                                 -> [{start, end, duration, type, label}]
-    kasa_doorbell/recordings/prepare {entry_id, start, duration}
+    kasa_doorbell_local/recordings/prepare {entry_id, start, duration}
                                                 -> {ready, progress, url, error}
 
 `prepare` is how a clip is played: it captures the recording to a real MP4 and the card polls
@@ -91,7 +91,7 @@ def _camera_entity(hass: HomeAssistant, entry: ConfigEntry) -> str | None:
 
 
 @websocket_api.websocket_command(
-    {vol.Required("type"): "kasa_doorbell/recordings/cameras"}
+    {vol.Required("type"): "kasa_doorbell_local/recordings/cameras"}
 )
 @callback
 def ws_cameras(hass: HomeAssistant, connection, msg: dict) -> None:
@@ -111,7 +111,7 @@ def ws_cameras(hass: HomeAssistant, connection, msg: dict) -> None:
 
 @websocket_api.websocket_command(
     {
-        vol.Required("type"): "kasa_doorbell/recordings/days",
+        vol.Required("type"): "kasa_doorbell_local/recordings/days",
         vol.Required("entry_id"): str,
     }
 )
@@ -142,7 +142,7 @@ async def ws_days(hass: HomeAssistant, connection, msg: dict) -> None:
 
 @websocket_api.websocket_command(
     {
-        vol.Required("type"): "kasa_doorbell/recordings/clips",
+        vol.Required("type"): "kasa_doorbell_local/recordings/clips",
         vol.Required("entry_id"): str,
         vol.Required("day"): str,
     }
@@ -201,7 +201,7 @@ def _local(timestamp: int):
 
 @websocket_api.websocket_command(
     {
-        vol.Required("type"): "kasa_doorbell/recordings/prepare",
+        vol.Required("type"): "kasa_doorbell_local/recordings/prepare",
         vol.Required("entry_id"): str,
         vol.Required("seek"): int,
         vol.Optional("duration"): vol.Any(int, None),

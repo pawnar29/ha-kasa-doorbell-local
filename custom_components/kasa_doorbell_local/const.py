@@ -1,4 +1,4 @@
-"""Constants for the Kasa Camera integration.
+"""Constants for the Kasa Doorbell (local) integration.
 
 The protocol values here — ports, module and method names, the XOR seed, the cipher enum —
 were recovered by reverse-engineering the Kasa Smart Android app, then verified against a
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Final
 
-DOMAIN: Final = "kasa_doorbell"
+DOMAIN: Final = "kasa_doorbell_local"
 
 # ── Config entry keys ────────────────────────────────────────────────────────
 CONF_HOST: Final = "host"  # camera LAN IP — used for local video

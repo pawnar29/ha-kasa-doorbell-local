@@ -1,15 +1,16 @@
-# Kasa Camera for Home Assistant
+# Kasa Doorbell (local)
 
-A Home Assistant custom integration for **TP-Link Kasa cameras and doorbells** — devices that
-ship with no RTSP, no ONVIF and no documented local API, and which otherwise only work through
+A Home Assistant custom integration for the **TP-Link Kasa KD110 video doorbell** — a device
+that ships with no RTSP, no ONVIF and no documented local API, and otherwise only works through
 the Kasa phone app.
 
-**It is 100% local.** The TP-Link cloud is never contacted, at setup or at runtime. There is no
-go2rtc, no Frigate, no MQTT broker, no add-on and no binary to install — just the ffmpeg that
-Home Assistant already bundles.
+**It is 100% local**, which is the whole point of it. The TP-Link cloud is never contacted, at
+setup or at runtime. There is no go2rtc, no Frigate, no MQTT broker, no add-on and no binary to
+install — just the ffmpeg that Home Assistant already bundles.
 
-Built and verified against a **KD110 video doorbell**. Other Kasa camera models are supported by
-the code but untested — see [Supported devices](#supported-devices).
+Everything here was developed and verified against a KD110. The protocol is shared across the
+Kasa camera family and the code handles the family generically, so other Kasa cameras have a
+fair chance of working — but none have been tested. See [Supported devices](#supported-devices).
 
 <p align="center">
   <img src="docs/images/card-clip-list.png" width="520" alt="The recordings card showing a day of clips grouped by trigger type">
@@ -38,7 +39,7 @@ sensor and no siren switch, because it has neither.
 ## Requirements
 
 - Home Assistant **2024.8** or newer
-- The camera on the same LAN as Home Assistant, reachable by IP
+- The doorbell on the same LAN as Home Assistant, reachable by IP
 - Your TP-Link / Kasa **account** email and password (see [Credentials](#credentials-and-privacy))
 - An SD card in the camera, if you want recordings
 
@@ -47,20 +48,20 @@ sensor and no siren switch, because it has neither.
 ### HACS (recommended)
 
 1. HACS → ⋮ → **Custom repositories** → add this repository's URL, category **Integration**.
-2. Search HACS for **Kasa Camera**, install it, and restart Home Assistant.
+2. Search HACS for **Kasa Doorbell (local)**, install it, and restart Home Assistant.
 
 ### Manual
 
-Copy `custom_components/kasa_doorbell/` into your Home Assistant `config/custom_components/`
+Copy `custom_components/kasa_doorbell_local/` into your Home Assistant `config/custom_components/`
 directory and restart:
 
 ```bash
-cp -r custom_components/kasa_doorbell /path/to/homeassistant/config/custom_components/
+cp -r custom_components/kasa_doorbell_local /path/to/homeassistant/config/custom_components/
 ```
 
 ### Set up
 
-**Settings → Devices & Services → Add Integration → "Kasa Camera"**, then supply:
+**Settings → Devices & Services → Add Integration → "Kasa Doorbell (local)"**, then supply:
 
 | Field | Value |
 |---|---|
@@ -226,13 +227,13 @@ polls the camera directly instead, which is local and fast (~1–2 s).
 | Tapo cameras (`TC*`, `C1xx`, `C2xx`…) | ❌ Out of scope — different protocol (KLAP). Use the [Tapo integration](https://github.com/JurajNyiri/HomeAssistant-Tapo-Control) |
 
 If you try another Kasa model, please open an issue with the result either way. Include the
-model number and, if setup failed, the `custom_components.kasa_doorbell` lines from your log
+model number and, if setup failed, the `custom_components.kasa_doorbell_local` lines from your log
 with debug logging on:
 
 ```yaml
 logger:
   logs:
-    custom_components.kasa_doorbell: debug
+    custom_components.kasa_doorbell_local: debug
 ```
 
 ## How it works
@@ -263,7 +264,7 @@ pinned by tests, so read the comments before adjusting them.
 ## Development
 
 ```
-custom_components/kasa_doorbell/
+custom_components/kasa_doorbell_local/
   api.py           local control channel: auth, XOR cipher, sysinfo, detections
   coordinator.py   polling, capability probing, entity state
   stream.py        multipart reader + ffmpeg pipelines (live and playback)

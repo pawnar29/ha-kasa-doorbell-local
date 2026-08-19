@@ -81,7 +81,7 @@ class ClipCache:
 
     def __init__(self, hass: HomeAssistant) -> None:
         self.hass = hass
-        self._dir = Path(tempfile.mkdtemp(prefix="kasa_camera_clips_"))
+        self._dir = Path(tempfile.mkdtemp(prefix="kasa_doorbell_local_clips_"))
         self._clips: dict[str, Clip] = {}
 
     def get(self, key: str) -> Clip | None:

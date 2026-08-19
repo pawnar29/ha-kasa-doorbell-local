@@ -14,7 +14,7 @@ from homeassistant.core import HomeAssistant
 _LOGGER = logging.getLogger(__name__)
 
 CARD_FILENAME = "kasa-recordings-card.js"
-CARD_URL = f"/kasa_camera_static/{CARD_FILENAME}"
+CARD_URL = f"/kasa_doorbell_local_static/{CARD_FILENAME}"
 _REGISTERED = f"{__name__}_registered"
 
 

@@ -119,8 +119,8 @@ class KasaDoorbellCoordinator:
         device = DeviceInfo(
             identifiers={(DOMAIN, self.entry.entry_id)},
             manufacturer="TP-Link",
-            name=(info.alias or info.dev_name) if info else "Kasa Camera",
-            model=(info.model or "Kasa Camera") if info else "Kasa Camera",
+            name=(info.alias or info.dev_name) if info else "Kasa Doorbell",
+            model=(info.model or "Kasa Doorbell") if info else "Kasa Doorbell",
             sw_version=info.sw_ver if info else None,
             hw_version=info.hw_ver if info else None,
         )
