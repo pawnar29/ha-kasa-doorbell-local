@@ -132,6 +132,7 @@ class ClipCache:
         )
         proc = None
         audio_w = None
+        started = time.monotonic()
         try:
             await reader.open()
             clip.wanted_frames = int(seconds * reader.frame_rate)
@@ -190,9 +191,18 @@ class ClipCache:
             if not clip.path.is_file() or clip.path.stat().st_size == 0:
                 raise StreamError("ffmpeg produced no file")
             clip.ready = True
+            # Report the RATE, not just the size. The camera paces VOD delivery itself, and
+            # the only way to know whether a fetch is limited by the device or by us is to
+            # compare against realtime: "2.5x realtime" is the device's known pace, so a
+            # figure well under that means the bottleneck is on this side.
+            elapsed = max(time.monotonic() - started, 0.001)
+            kib = clip.path.stat().st_size // 1024
+            footage = clip.frames / (reader.frame_rate or 15.0)
             _LOGGER.info(
-                "Captured %s frames to %s (%s KB)",
-                clip.frames, clip.path.name, clip.path.stat().st_size // 1024,
+                "Captured %s frames (%.0fs of footage) to %s (%s KB) in %.1fs"
+                " — %.0f KB/s, %.1fx realtime",
+                clip.frames, footage, clip.path.name, kib, elapsed,
+                kib / elapsed, footage / elapsed,
             )
         except Exception as err:  # noqa: BLE001 — surfaced to the card
             clip.error = str(err) or type(err).__name__
