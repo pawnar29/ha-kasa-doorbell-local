@@ -57,17 +57,25 @@ AUDIO_BITRATE = "64k"
 # ffmpeg blocks on any input that never produces data, so give up on audio after this and
 # mux video alone rather than stalling the whole stream.
 AUDIO_GRACE_SECONDS = 6
+# How many video parts may sit between the camera reader and ffmpeg's stdin. This is the
+# slack that lets the reader keep pulling AUDIO parts while ffmpeg is momentarily not
+# reading video; when it fills, the reader blocks and TCP back-pressure reaches the camera,
+# which is the behaviour we want. ~7 KB per part, so this is a few MB at most.
+VIDEO_QUEUE_PARTS = 512
 # How long a viewer may stop reading before we treat it as gone rather than merely buffering.
 # Generous on purpose: a browser that has buffered ahead legitimately goes quiet for a while.
 SUBSCRIBER_STALL_TIMEOUT = 30
-# ⚠️ AUDIO OFF. Not because the muxing is broken — with `_INTERLEAVE_BOUND` fixed, ffmpeg
-# streams a two-track fMP4 at ~96% of input. The browser is what will not start: with audio
-# the player sits on a spinner while the clip loads; video-only plays immediately. Note the
-# camera sends VIDEO BEFORE AUDIO (the logs show `fed 1 video part(s) / 0 audio part(s)`), so
-# the first fragments declare an audio track that has no samples yet — the likely reason the
-# player waits. To retry: hold video in `_feed` until the first audio part arrives so both
-# tracks start together, and test that ALONE.
-AUDIO_CONTAINERS: frozenset[str] = frozenset()
+# Which containers get an audio track muxed in.
+#
+# LIVE (mpegts) HAS AUDIO. It goes to HA's `stream` component, which demuxes the TS with
+# PyAV and republishes HLS — a two-track H.264+AAC TS is the ordinary case there.
+# ⚠️ The blanket audio-off that used to live here was inherited from a path that NO LONGER
+# EXISTS: back when RECORDINGS were streamed as an open-ended fMP4 straight into a <video>,
+# the browser would not start a two-track stream and sat on a spinner. Recordings are now
+# captured to a finished MP4 first (clips.py, which muxes its own AAC and does have sound),
+# so that reason never applied to live in the first place.
+# fMP4 stays audio-free: nothing streams that container to a browser any more.
+AUDIO_CONTAINERS: frozenset[str] = frozenset({"mpegts"})
 # ⚠️ READ THE DOCS BEFORE TOUCHING THIS. With two inputs ffmpeg buffers output so it can
 # interleave them, and the DEFAULT bound is 10 SECONDS — which is what made recordings sit
 # there before showing anything once audio was added.
@@ -323,6 +331,7 @@ class KasaStreamPipeline:
         self._container = container
         self._proc: asyncio.subprocess.Process | None = None
         self._feeder: asyncio.Task | None = None
+        self._video_writer: asyncio.Task | None = None
         self._pump_task: asyncio.Task | None = None
         self._stderr_task: asyncio.Task | None = None
         self._audio_watchdog: asyncio.Task | None = None
@@ -350,6 +359,7 @@ class KasaStreamPipeline:
             os.set_inheritable(audio_r, True)
             audio_args = (
                 *self._audio_input_args(), "-i", f"pipe:{audio_r}",
+                *self._audio_filter_args(),
                 "-c:a", "aac", "-b:a", AUDIO_BITRATE,
             )
         try:
@@ -436,6 +446,24 @@ class KasaStreamPipeline:
             return args
         return ("-use_wallclock_as_timestamps", "1", *args)
 
+    def _audio_filter_args(self) -> tuple[str, ...]:
+        """Rebuild a continuous audio timeline before encoding. LIVE ONLY.
+
+        ⚠️ Without this, live audio is silently DROPPED ENTIRELY — the TS declares an AAC
+        stream and carries zero AAC packets. The camera delivers audio in clumps, and
+        `-use_wallclock_as_timestamps` stamps each arriving chunk with its ARRIVAL time; a
+        clump of 60 ms parts landing inside 40 ms puts the sample clock permanently ahead of
+        the arrival clock, so every later frame looks "backward in time" to the encoder
+        (ffmpeg says exactly that) and is discarded. It never recovers on its own.
+
+        `aresample=async` stretches or pads to keep one continuous timeline, which is what
+        the encoder needs. `first_pts=0` anchors the start instead of inheriting the jitter.
+        Playback does not need this: it has no wallclock stamps to fight with.
+        """
+        if self._container != "mpegts":
+            return ()
+        return ("-af", "aresample=async=1:min_hard_comp=0.100000:first_pts=0")
+
     def _output_args(self) -> tuple[str, ...]:
         """Container args. MPEG-TS feeds HA's `stream`; fMP4 feeds a browser <video> directly.
 
@@ -462,7 +490,15 @@ class KasaStreamPipeline:
         # mpegts muxer (it never emits anything).
         # -flush_packets was tried here too and made LIVE stutter after a few seconds: it
         # splits output into many small writes, which filled the fan-out queue far sooner.
-        # Live is not latency-critical enough to be worth that; leave this bare.
+        # Live is not latency-critical enough to be worth that; leave it off.
+        if self._container in AUDIO_CONTAINERS:
+            # ⚠️ REQUIRED once there are two inputs, and easy to miss because the one-input
+            # form never needed it: ffmpeg's default interleave bound is 10 SECONDS of
+            # buffering while it pairs audio with video. Measured on a drip-fed synthetic
+            # h264+mulaw feed (ffmpeg 7.1): 73% of the output was written while input was
+            # still arriving with this bound, against 45% on the default and 47% at 0.
+            # See _INTERLEAVE_BOUND — the value must be small and POSITIVE, never 0.
+            return (*_INTERLEAVE_BOUND, "-f", "mpegts", "pipe:1")
         return ("-f", "mpegts", "pipe:1")
 
     async def _log_stderr(self) -> None:
@@ -476,10 +512,37 @@ class KasaStreamPipeline:
         except Exception:  # noqa: BLE001 — process went away
             pass
 
+    async def _write_video(self, queue: asyncio.Queue) -> None:
+        """Write queued video to ffmpeg's stdin. The ONLY place that awaits drain()."""
+        assert self._proc is not None and self._proc.stdin is not None
+        try:
+            while (payload := await queue.get()) is not None:
+                self._proc.stdin.write(payload)
+                await self._proc.stdin.drain()
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Video writer stopped: %s", err)
+
     async def _feed(self) -> None:
-        """Pump camera H.264 into ffmpeg's stdin until either side goes away."""
+        """Read camera parts and dispatch them. MUST NOT block on ffmpeg — see below.
+
+        ⚠️ Video is handed to a separate writer task rather than written here. With TWO
+        inputs, ffmpeg stops reading stdin while it waits for an audio packet to advance
+        interleaving; when this loop also owned the awaited `drain()`, that wait blocked the
+        loop, so the next AUDIO part — which is what ffmpeg was waiting for, and which
+        arrives on this same multipart connection — was never delivered. The two inputs
+        deadlocked each other and the whole pipeline collapsed to a trickle.
+
+        Measured against the real pipeline with a synthetic camera: 167 parts/s with audio
+        off, 1.8 parts/s with audio on and a single feeder — matching the ~2 parts/s seen on
+        the device. Audio writes go straight to the transport, which buffers rather than
+        blocking, so the reader now always keeps draining the camera socket.
+        """
         assert self._proc is not None and self._proc.stdin is not None
         parts = 0
+        video_q: asyncio.Queue = asyncio.Queue(maxsize=VIDEO_QUEUE_PARTS)
+        self._video_writer = asyncio.create_task(self._write_video(video_q))
         try:
             async for kind, payload in self._reader.iter_parts():
                 if kind == "audio":
@@ -489,8 +552,7 @@ class KasaStreamPipeline:
                     if self._audio_transport is not None:
                         self._audio_transport.write(payload)
                     continue
-                self._proc.stdin.write(payload)
-                await self._proc.stdin.drain()
+                await video_q.put(payload)
                 parts += 1
                 self._bytes_in += len(payload)
                 if parts in (1, 10, 100) or parts % 500 == 0:
@@ -511,6 +573,12 @@ class KasaStreamPipeline:
             )
         finally:
             self._close_audio()
+            with contextlib.suppress(asyncio.QueueFull):
+                video_q.put_nowait(None)   # sentinel: let the writer finish and exit
+            if self._video_writer:
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    await asyncio.wait_for(self._video_writer, timeout=5)
+                self._video_writer = None
             if self._proc and self._proc.stdin and not self._proc.stdin.is_closing():
                 try:
                     self._proc.stdin.close()
@@ -593,7 +661,8 @@ class KasaStreamPipeline:
         )
         self._close_audio()
         for task in (
-            self._pump_task, self._feeder, self._stderr_task, self._audio_watchdog
+            self._pump_task, self._feeder, self._stderr_task, self._audio_watchdog,
+            self._video_writer,
         ):
             if task:
                 task.cancel()

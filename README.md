@@ -22,7 +22,7 @@ fair chance of working — but none have been tested. See [Supported devices](#s
 
 | Entity | Source | Notes |
 |---|---|---|
-| `camera.*` | own video pipeline: device HTTPS multipart → ffmpeg → MPEG-TS → HA `stream` | live view, video only |
+| `camera.*` | own video pipeline: device HTTPS multipart → ffmpeg → MPEG-TS → HA `stream` | live view, **with audio** |
 | `binary_sensor.*_motion` | `vod.get_detect_event_state` polled every 2 s | ~1–2 s latency, real off-state |
 | `switch.*_camera_active` | `switch.set_is_enable` | the camera's privacy toggle |
 | `switch.*_status_led` | `led.set_status` | |
@@ -181,11 +181,18 @@ A clip only becomes listable once the camera **finalizes** it, roughly 1–2 min
 event ends (the delay tracks the clip's own length). The recordings card is for reviewing what
 happened, not for watching what is happening. Use the live view and the motion sensor for that.
 
-### No audio on the live view
+### Live goes over HLS, not WebRTC
 
-Live is video-only. The camera interleaves H.264 and G.711 audio in one stream and the muxing
-works, but browsers will not start playing this device's two-track live stream — they spin while
-loading. Video-only starts instantly. **Recorded clips do have audio.**
+If Home Assistant has go2rtc available it will offer to serve any camera it recognises over
+WebRTC, and it claims this one because the source URL is plain HTTP. That is declined
+deliberately: go2rtc runs its own ffmpeg against the stream, which puts a **second** consumer on
+a camera that allows exactly one connection. Measured on the device, go2rtc failed with
+`error=EOF` every ~10 s while HA's own worker timed out, and the live view never started.
+
+The camera entity therefore keeps `_webrtc_provider` unset and advertises HLS only. Latency is
+whatever HA's HLS segmentation gives you — the camera's keyframes are ~4 s apart and a segment
+can only begin on a keyframe, so if the delay bothers you, lower `segment_duration` and
+`part_duration` under `stream:` in `configuration.yaml`.
 
 ### No doorbell-press sensor
 
@@ -250,7 +257,9 @@ with the classic Kasa autokey cipher, over TLS with a self-signed certificate an
 authenticated with HTTP Basic.
 
 **Video** is an HTTPS `multipart/x-mixed-replace` stream that interleaves H.264 video parts and
-G.711 audio parts. Home Assistant's `stream` component cannot open it (PyAV has no such protocol)
+G.711 audio parts. Both are muxed for live (the audio is transcoded to AAC), which needs two
+ffmpeg inputs fed from that one connection — see the warnings in `stream.py` before touching the
+feeder or the audio timestamps; both have non-obvious failure modes that cost real debugging. Home Assistant's `stream` component cannot open it (PyAV has no such protocol)
 and neither can HA's bundled go2rtc, which ships without the `kasa` driver. So the integration
 reads the multipart stream itself, feeds the H.264 into ffmpeg, and serves the result on loopback
 for Home Assistant to consume.

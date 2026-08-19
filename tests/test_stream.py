@@ -143,10 +143,11 @@ def test_live_still_uses_wallclock_stamps():
     )
 
 
-def test_audio_is_off():
-    """Muxing works, but the browser will not start playing a two-track stream from this
-    camera — it spins while loading. Video-only plays immediately, and playing beats sound."""
-    assert st.AUDIO_CONTAINERS == frozenset()
+def test_live_has_audio_and_fmp4_does_not():
+    """Live is a two-track TS handed to HA's `stream`, which is the ordinary case for it.
+    fMP4 stays video-only: nothing streams that container to a browser any more — recordings
+    are captured to a finished file by clips.py, which muxes its own audio."""
+    assert st.AUDIO_CONTAINERS == frozenset({"mpegts"})
 
 
 def test_interleave_buffering_is_bounded_but_not_zero():
@@ -158,7 +159,7 @@ def test_interleave_buffering_is_bounded_but_not_zero():
     assert 0 < bound <= 500_000
 
 
-def test_audio_args_stay_correct_for_when_it_is_re_enabled():
+def test_audio_input_args_describe_g711_mulaw():
     for container in ("mp4", "mpegts"):
         args = _pipeline(container)._audio_input_args()
         assert "-f" in args and "mulaw" in args
@@ -171,6 +172,42 @@ def test_audio_args_stay_correct_for_when_it_is_re_enabled():
     assert "-use_wallclock_as_timestamps" not in _pipeline("mp4")._audio_input_args()
 
 
+def test_reader_never_awaits_ffmpeg_directly():
+    """⚠️ The reader loop must not own the awaited drain().
+
+    With two inputs ffmpeg stops reading stdin while it waits for an audio packet; when the
+    reader loop also awaited drain(), the next AUDIO part — arriving on the same multipart
+    connection — was never delivered, so the inputs deadlocked. Measured against the real
+    pipeline with a realtime synthetic camera offering 25 parts/s: 1.8 parts/s with one
+    feeder, 23.7 with the writer split out. The device showed exactly 1.8-2.0.
+    """
+    import inspect
+
+    # Matched on "stdin.drain" rather than "drain()" so the explanation in the docstring
+    # does not trip the check.
+    feed_src = inspect.getsource(st.KasaStreamPipeline._feed)
+    assert "stdin.drain" not in feed_src, "the reader loop must not await ffmpeg's stdin"
+    assert "video_q.put" in feed_src
+    writer_src = inspect.getsource(st.KasaStreamPipeline._write_video)
+    assert "stdin.drain" in writer_src, "the video writer is where drain() belongs"
+    # Bounded, so a stalled ffmpeg still back-pressures the camera instead of buffering
+    # without limit.
+    assert 0 < st.VIDEO_QUEUE_PARTS <= 2048
+
+
+def test_live_audio_gets_a_resampled_timeline():
+    """⚠️ Load-bearing. Without the filter the camera's clumped audio delivery puts the
+    sample clock permanently ahead of the wallclock stamps, every frame reads as "backward
+    in time" to the encoder, and the TS ends up declaring an AAC stream with ZERO packets.
+    Measured on the real device: 0 audio TS packets without it, 146 with it."""
+    args = _pipeline("mpegts")._audio_filter_args()
+    assert args[0] == "-af"
+    assert "aresample=async=" in args[1]
+    assert "first_pts=0" in args[1]
+    # Playback has no wallclock stamps to fight with, so it must not pay for this.
+    assert _pipeline("mp4")._audio_filter_args() == ()
+
+
 def test_fmp4_output_is_streamable():
     """empty_moov + frag_keyframe put a playable header first; without them the muxer would
     have to seek back and rewrite it at the end, which a pipe cannot do."""
@@ -181,12 +218,15 @@ def test_fmp4_output_is_streamable():
     assert args[-2:] == ("-f", "mp4") or args[-1] == "pipe:1"
 
 
-def test_mpegts_output_stays_bare():
-    """Live carries NO extra output flags. -fflags nobuffer / -flags low_delay make the
-    mpegts muxer emit zero bytes, and -flush_packets made live stutter after a few seconds
-    by splitting output into many small writes that overran the fan-out queue."""
+def test_mpegts_carries_only_the_interleave_bound():
+    """Live takes NO latency flags: -fflags nobuffer / -flags low_delay make the mpegts muxer
+    emit zero bytes, and -flush_packets made live stutter after a few seconds by splitting
+    output into many small writes that overran the fan-out queue.
+
+    The interleave bound is the one exception, and it is mandatory rather than optional: with
+    an audio input as well, ffmpeg's default is to buffer up to 10 s while pairing streams."""
     args = _pipeline("mpegts")._output_args()
-    assert args == ("-f", "mpegts", "pipe:1")
+    assert args == ("-max_interleave_delta", "100000", "-f", "mpegts", "pipe:1")
     joined = " ".join(args)
     for flag in ("nobuffer", "low_delay", "flush_packets"):
         assert flag not in joined

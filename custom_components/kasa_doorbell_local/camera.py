@@ -59,6 +59,22 @@ class KasaCamera(Camera):
         # reverse proxies and DNS entirely. ffmpeg/PyAV don't verify TLS on input by default.
         return async_live_url(self.hass, self._entry.entry_id)
 
+    async def async_refresh_providers(self, *, write_state: bool = True) -> None:
+        """Keep this camera on HA's own HLS path — never hand it to a WebRTC provider.
+
+        ⚠️ The camera allows exactly ONE video connection. HA's bundled go2rtc claims any
+        source whose scheme it knows, and ours is plain http, so it would register as a
+        WebRTC provider and run its own ffmpeg (`#audio=opus`) against our stream. That adds
+        a SECOND consumer to a single-slot device: measured against the real camera, go2rtc's
+        ffmpeg failed with `error=EOF` every ~10 s while HA's own stream worker timed out
+        with "Immediate exit requested", and the live view never started.
+
+        Leaving `_webrtc_provider` as None makes `camera_capabilities` advertise HLS only,
+        which is the path this pipeline is built for. The base implementation is deliberately
+        NOT called.
+        """
+        return
+
     async def async_camera_image(
         self, width: int | None = None, height: int | None = None
     ) -> bytes | None:
