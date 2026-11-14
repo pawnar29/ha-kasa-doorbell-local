@@ -93,6 +93,23 @@ If you would rather not store the account password at all, put the already-ciphe
 use the override verbatim. The trade-off is that you must update it by hand if the password ever
 changes.
 
+## Live view on a dashboard
+
+Use the **live** view, not the default. The camera has no still-image endpoint, so a card in
+`auto` mode has nothing to refresh:
+
+```
+type: picture-entity
+entity: camera.front_door
+camera_view: live
+show_state: false
+show_name: false
+```
+
+Also enable **Preload stream** in the camera entity's settings so the stream is already
+running when the dashboard opens. Stills (thumbnails) come from the running stream; with no
+stream running, the last frame seen is shown.
+
 ## The recordings card
 
 Kasa cameras with an SD card record continuously and tag each finished clip with what triggered

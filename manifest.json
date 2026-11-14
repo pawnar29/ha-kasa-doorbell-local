@@ -1,0 +1,20 @@
+{
+  "domain": "kasa_doorbell_local",
+  "name": "Kasa Doorbell (local)",
+  "codeowners": [
+    "@hbattat"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "ffmpeg",
+    "frontend",
+    "http",
+    "stream",
+    "websocket_api"
+  ],
+  "documentation": "https://github.com/hbattat/ha-kasa-doorbell-local",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/hbattat/ha-kasa-doorbell-local/issues",
+  "requirements": [],
+  "version": "1.0.0"
+}

@@ -1,0 +1,35 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Kasa Doorbell (local)",
+        "description": "Everything runs locally on your network — the TP-Link cloud is never contacted. Your account email and password are used only to authenticate directly with the camera, which then tells us its model and device ID.",
+        "data": {
+          "host": "Camera IP address",
+          "email": "TP-Link / Kasa account email",
+          "password": "TP-Link / Kasa account password",
+          "stream_password": "Local secret (optional — leave blank to derive it from your password)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Couldn't reach the camera. Check the IP address, and that Home Assistant is on the same network.",
+      "invalid_auth": "The camera rejected those credentials. Check your TP-Link account email and password."
+    },
+    "abort": {
+      "already_configured": "This camera is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Kasa Doorbell options",
+        "description": "Everything runs locally on your network. Motion poll interval: how often to read the camera's motion state (lower = faster response). Motion safety clear: if readings stop arriving mid-detection, clear motion after this many seconds.",
+        "data": {
+          "local_motion_interval": "Motion poll interval (seconds)",
+          "motion_reset_seconds": "Motion safety clear (seconds)"
+        }
+      }
+    }
+  }
+}
